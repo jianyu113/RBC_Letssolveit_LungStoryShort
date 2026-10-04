@@ -1,21 +1,22 @@
 # LungStoryShort
 
-胸部 X 光影像研究项目，计划使用 ResNet-18 进行图像分类，使用 Faster R-CNN
-定位肺部不透明区域，并比较分类、检测和分数融合的排序效果。
+A chest X-ray research project that will use ResNet-18 for image classification
+and Faster R-CNN for lung opacity localization. The project will compare image
+rankings from the classifier, the detector, and a combination of their scores.
 
-项目目前处于初始化阶段，训练和评估代码尚未实现。
+The project is in its setup phase. Training and evaluation code has not yet been implemented.
 
-## 环境要求
+## Environment
 
-- 环境管理：Conda，环境名为 `lungstoryshort`。
-- Python：`3.12.15`。
-- 当前依赖版本来源：本地 macOS ARM64 的 Conda 环境。
-- `requirements.txt` 固定项目直接依赖的版本，间接依赖由 pip 解析。
+- Environment manager: Conda, with an environment named `lungstoryshort`.
+- Python: `3.12.15`.
+- Dependency versions were recorded from a local Conda environment on macOS ARM64.
+- `requirements.txt` pins direct dependencies. Transitive dependencies are resolved by pip.
 
-## 首次安装
+## Initial Setup
 
-先安装 Conda，再进入克隆后的仓库根目录（包含 `requirements.txt` 的目录）。
-每位成员在自己的电脑上创建环境：
+Install Conda, then open a terminal in the cloned repository's root directory,
+which contains `requirements.txt`. Each team member should create a local environment:
 
 ```bash
 conda create -n lungstoryshort python=3.12.15 pip
@@ -23,9 +24,9 @@ conda activate lungstoryshort
 python -m pip install -r requirements.txt
 ```
 
-如果已经创建了 `lungstoryshort` 环境，跳过第一条命令。
+Skip the first command if the `lungstoryshort` environment already exists.
 
-检查依赖和 Python 解释器：
+Check the dependencies and Python interpreter:
 
 ```bash
 python --version
@@ -33,42 +34,44 @@ python -m pip check
 python -c "import sys, torch, torchvision, pydicom; print(sys.executable); print('torch:', torch.__version__); print('torchvision:', torchvision.__version__)"
 ```
 
-`pip check` 应显示 `No broken requirements found.`，解释器路径应指向 Conda 的
-`lungstoryshort` 环境。
+`pip check` should report `No broken requirements found.` The interpreter path
+should point to the `lungstoryshort` Conda environment.
 
-## 日常使用
+## Daily Use
 
-打开新终端后激活环境：
+Activate the environment in each new terminal:
 
 ```bash
 conda activate lungstoryshort
 ```
 
-退出环境：
+Deactivate the environment:
 
 ```bash
 conda deactivate
 ```
 
-VS Code 的 Python 解释器和 Notebook 内核都选择 Conda 的 `lungstoryshort` 环境。
+In VS Code, select the `lungstoryshort` Conda environment as both the Python
+interpreter and the notebook kernel.
 
-## 团队协作
+## Team Workflow
 
-团队共享 `requirements.txt`，每位成员独立创建本地环境。
-依赖文件更新后，在已激活的环境中重新安装：
+Share `requirements.txt` through the repository. Each team member maintains a
+separate local environment. After the dependency file changes, update the active environment:
 
 ```bash
 python -m pip install -r requirements.txt
 python -m pip check
 ```
 
-新增或升级直接依赖时，在 `requirements.txt` 中记录实际使用的版本并验证安装。
-这个文件不锁定所有间接依赖，也不保证不同平台的运行结果完全一致。
-Windows、Linux 或 NVIDIA GPU 环境需要按
-[PyTorch 官方安装说明](https://pytorch.org/get-started/locally/)
-选择对应构建，并核对与项目固定版本的兼容性。
+When adding or upgrading a direct dependency, record its installed version in
+`requirements.txt` and verify the installation. This file does not lock all
+transitive dependencies or guarantee identical results across platforms.
+For Windows, Linux, or NVIDIA GPU environments, follow the
+[official PyTorch installation instructions](https://pytorch.org/get-started/locally/)
+to select the appropriate build and check compatibility with the pinned versions.
 
-## 当前目录
+## Current Structure
 
 ```text
 RBC_Letssolveit_LungStoryShort/
@@ -81,5 +84,6 @@ RBC_Letssolveit_LungStoryShort/
 └── requirements.txt
 ```
 
-`dataset/scripts/` 和 `models/` 目前为空，后续按实际开发需要添加代码。
-本地虚拟环境、Python 缓存和 Notebook 检查点由 `.gitignore` 排除。
+`dataset/scripts/` and `models/` are currently empty. Add code as development proceeds.
+Local virtual environments, Python caches, and notebook checkpoints are excluded
+by `.gitignore`.
