@@ -1,0 +1,23 @@
+# Python 3.12.15
+# Direct dependency versions from the lungstoryshort Conda environment on macOS ARM64.
+# Transitive dependencies are resolved by pip.
+
+# Model training and inference
+torch==2.14.1
+torchvision==0.29.1
+
+# DICOM and data processing
+pydicom==3.0.2
+numpy==2.5.3
+pandas==3.0.6
+
+# Evaluation and visualization
+scikit-learn==1.9.1
+matplotlib==3.11.2
+
+# Configuration and progress reporting
+PyYAML==6.0.3
+tqdm==4.70.1
+
+# Notebook kernel
+ipykernel==7.4.0
