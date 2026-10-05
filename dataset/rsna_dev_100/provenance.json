@@ -1,0 +1,38 @@
+{
+  "source": "RSNA official adjudicated dataset, Calculated label group",
+  "source_page": "https://www.rsna.org/artificial-intelligence/ai-image-challenge/RSNA-Pneumonia-Detection-Challenge-2018",
+  "archive_url": "https://s3.amazonaws.com/east1.public.rsna.org/AI/2018/pneumonia-challenge-dataset-adjudicated-kaggle_2018.zip",
+  "archive_size_bytes": 3978753654,
+  "source_metadata": {
+    "pneumonia-challenge-dataset-mappings_2018.json": {
+      "url": "https://s3.amazonaws.com/east1.public.rsna.org/AI/2018/pneumonia-challenge-dataset-mappings_2018.json",
+      "sha256": "803ce79e3bc9c66d3631738e91e62e1175730e98ad1415e8dc4d6292ba10bf27"
+    },
+    "pneumonia-challenge-annotations-adjudicated-kaggle_2018.json": {
+      "url": "https://s3.amazonaws.com/east1.public.rsna.org/AI/2018/pneumonia-challenge-annotations-adjudicated-kaggle_2018.json",
+      "sha256": "f8f5c54bae158fc0e2f019af979471803151a5922463ff3a378d7734e01b18fb"
+    }
+  },
+  "seed": 42,
+  "sampling": "Python random.Random(42); sample 50 without replacement from sorted image IDs with Target=0, then sample 50 from sorted image IDs with Target=1 using the same generator; sort the combined IDs.",
+  "sampling_population": {
+    "images_in_archive": 30000,
+    "images_with_calculated_labels": 29684,
+    "unlabelled_images_excluded": 316
+  },
+  "label_ids": {
+    "L_o8w": "Normal",
+    "L_yd0": "No Lung Opacity / Not Normal",
+    "L_v8n": "Lung Opacity"
+  },
+  "target_definition": "Target=1 means an annotation in Calculated / Lung Opacity (L_v8n); Target=0 means Calculated / Normal or No Lung Opacity / Not Normal.",
+  "image_count": 100,
+  "class_counts": {
+    "No Lung Opacity / Not Normal": 31,
+    "Lung Opacity": 50,
+    "Normal": 19
+  },
+  "box_count": 82,
+  "image_bytes": 12939940,
+  "kaggle_stage_2_membership": "Not verified; this sample is for preprocessing development only."
+}
