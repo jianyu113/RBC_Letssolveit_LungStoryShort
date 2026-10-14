@@ -32,7 +32,8 @@ CSV_FIELDS = [
     "clip_high",
     "processed_height",
     "processed_width",
-    "scale_factor",
+    "scale_x",
+    "scale_y",
     "pad_left",
     "pad_top",
     "issue",
@@ -93,7 +94,7 @@ def resize_and_pad(
     image: np.ndarray,
     target_size: int,
 ) -> tuple[torch.Tensor, dict[str, float | int]]:
-    """Resize an image without distortion and pad it to a square."""
+    """Resize and pad to a square, returning scales for the rounded dimensions."""
     original_height, original_width = image.shape
     scale = min(
         target_size / original_height,
@@ -128,7 +129,8 @@ def resize_and_pad(
     metadata = {
         "processed_height": target_size,
         "processed_width": target_size,
-        "scale_factor": scale,
+        "scale_x": resized_width / original_width,
+        "scale_y": resized_height / original_height,
         "pad_left": pad_left,
         "pad_top": pad_top,
     }
