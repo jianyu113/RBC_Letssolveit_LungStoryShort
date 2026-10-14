@@ -1,23 +1,10 @@
 # Data preparation
 
-Run all commands below from the repository root. The shared development sample is stored at `dataset/rsna_dev_100/`; generated files go into the separate `dataset/rsna_dev_100_prepared/` directory.
+For environment setup and activation, see the [project README](readme.md). Run all dataset commands below from the repository root.
 
-## Setup and shared data
+## Shared dataset
 
-Use the existing team environment:
-
-```sh
-conda activate lungstoryshort
-python -m pip install -r requirements.txt
-```
-
-If the environment does not exist, create it first:
-
-```sh
-conda create -n lungstoryshort python=3.12.15
-conda activate lungstoryshort
-python -m pip install -r requirements.txt
-```
+The shared development sample is stored at `dataset/rsna_dev_100/`; generated files go into the separate `dataset/rsna_dev_100_prepared/` directory.
 
 Each teammate should obtain the same sample folder from the team's shared Drive and place it at the same repository-relative location. Keep the images, CSV files, and fixed split file together:
 
