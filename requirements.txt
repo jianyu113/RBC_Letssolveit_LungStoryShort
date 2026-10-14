@@ -3,8 +3,8 @@
 # Transitive dependencies are resolved by pip.
 
 # Model training and inference
-torch==2.14.1
-torchvision==0.29.1
+torch==2.11.0
+torchvision==0.26.0
 
 # DICOM and data processing
 pydicom==3.0.2
