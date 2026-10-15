@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare RSNA DICOM images, matching boxes, and fixed patient-level splits.
 
-No source files are modified. Output must be a new or empty directory.
+Reuse existing splits or create them with seed 42. Output must be new or empty.
 """
 import argparse
 import csv
@@ -14,8 +14,11 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
 from PIL import Image, ImageDraw
 
+from convert_rsna_annotations import convert_annotations
 from image_processing import apply_intensity_processing, load_dicom_pixels, resize_and_pad
 
 
@@ -59,33 +62,65 @@ def load_fixed_splits(path, manifest, image_ids):
     return assignments
 
 
-def main():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--input', required=True, type=Path)
-    p.add_argument('--output', required=True, type=Path)
-    p.add_argument('--images-dir', type=Path, help='Override image folder; files matched by manifest basename')
-    p.add_argument('--labels-file', default='labels.csv')
-    p.add_argument('--classes-file', default='detailed_class_info.csv')
-    p.add_argument('--manifest-file', default='sample_ids.csv')
-    p.add_argument('--splits-file', default='splits.csv')
-    p.add_argument('--source-size', nargs=2, type=int, metavar=('WIDTH', 'HEIGHT'), help='Optional documented dimensions for missing images; never treated as measured')
-    p.add_argument('--target-size', type=int, default=512, help='Square output size; preserve aspect ratio and pad with black')
-    p.add_argument('--visual-limit', type=int, default=100,
-                   help='Maximum previews per class/box-count group; -1 for every image, 0 for none')
-    args = p.parse_args()
-    if args.target_size <= 0 or (args.source_size and min(args.source_size) <= 0):
-        p.error('Dimensions must be positive')
+def make_splits(manifest: pd.DataFrame) -> pd.DataFrame:
+    """Keep each NIH patient's images together and stratify by patient target."""
+    patient_targets = manifest.groupby("nih_patient_id", sort=True)["Target"].max()
+    train_ids, remaining_ids = train_test_split(
+        patient_targets.index,
+        test_size=0.30,
+        stratify=patient_targets,
+        random_state=42,
+    )
+    val_ids, test_ids = train_test_split(
+        remaining_ids,
+        test_size=0.50,
+        stratify=patient_targets.loc[remaining_ids],
+        random_state=42,
+    )
+
+    patient_splits = {}
+    for name, patient_ids in [("train", train_ids), ("val", val_ids), ("test", test_ids)]:
+        patient_splits.update({patient_id: name for patient_id in patient_ids})
+
+    splits = manifest[["image_id", "nih_patient_id"]].copy()
+    splits["split"] = splits["nih_patient_id"].map(patient_splits)
+    return splits.sort_values("image_id").reset_index(drop=True)
+
+
+def prepare_splits(path, manifest, check_only=False):
+    """Preserve saved splits; create them only when missing."""
+    if check_only or not path.exists():
+        frame = pd.DataFrame(manifest)
+        frame['Target'] = frame['Target'].astype(int)
+        csv_text = make_splits(frame).to_csv(index=False, lineterminator='\n')
+        if check_only:
+            if path.read_text(encoding='utf-8') != csv_text:
+                raise ValueError('splits.csv does not match the fixed patient-level split.')
+            print(f'Verified {path} against the manifest and seed 42.')
+        else:
+            with path.open('x', encoding='utf-8', newline='') as handle:
+                handle.write(csv_text)
+            print(f'Created {path}')
+    else:
+        print(f'Reusing {path}')
+
+
+def save_review_examples(output, previews):
+    """Combine the first preview from each class/box-count group."""
+    if not previews:
+        return
+    sheet = Image.new('RGB', (1000, 560 * len(previews)), 'white')
+    for index, path in enumerate(previews):
+        with Image.open(output / path) as preview:
+            sheet.paste(preview, (0, index * 560))
+    sheet.save(output / 'review_examples.jpg')
+
+
+def prepare_images(args):
     src, out = args.input.resolve(), args.output.resolve()
-    if src == out or src in out.parents:
-        p.error('Use an output directory outside the input folder')
-    if out.exists() and any(out.iterdir()):
-        p.error('Output must be empty or new; choose a fresh output folder')
-    for filename in (args.labels_file, args.classes_file, args.manifest_file, args.splits_file):
-        if not (src / filename).is_file():
-            p.error(f'Input file is missing: {filename}')
-    raw = read_csv(src / args.labels_file, ['patientId','x','y','width','height','Target'])
-    classes = read_csv(src / args.classes_file, ['patientId','class'])
-    manifest = read_csv(src / args.manifest_file, ['image_id','nih_patient_id','path'])
+    raw = read_csv(src / 'labels.csv', ['patientId','x','y','width','height','Target'])
+    classes = read_csv(src / 'detailed_class_info.csv', ['patientId','class'])
+    manifest = read_csv(src / args.manifest_file, ['image_id','nih_patient_id','Target','path'])
     issues = []
     def issue(i, code, detail, severity='error'):
         issues.append(dict(image_id=i, severity=severity, issue=code, detail=detail))
@@ -112,12 +147,14 @@ def main():
         groups[r['patientId'].strip()].append((line, r))
     image_ids = set(groups) | set(cm) | set(mm)
     if set(mm) != image_ids:
-        p.error('The manifest must contain every input image')
+        raise ValueError('The manifest must contain every input image')
+    prepare_splits(src / args.splits_file, manifest)
     assignments = load_fixed_splits(src / args.splits_file, mm, image_ids)
     out.mkdir(parents=True, exist_ok=True)
     labels, boxes, visuals = [], [], []
     matched_paths = set()
     visual_counts = Counter()
+    review_previews = {}
     actual_hashes = {}
     for index, i in enumerate(sorted(image_ids), 1):
         rows, meta = groups[i], mm.get(i, {})
@@ -139,11 +176,11 @@ def main():
             if meta.get(key, '') and meta[key] != value:
                 issue(i, 'manifest_mismatch', key)
         rel = meta.get('path') or f'images/{i}.dcm'
-        path = ((args.images_dir / Path(rel).name) if args.images_dir else src / rel).resolve()
+        path = (src / rel).resolve()
         matched_paths.add(path)
         im, ds, measured = None, None, False
         processed, intensity, spatial = None, {}, {}
-        w, h = args.source_size or ('', '')
+        w, h = '', ''
         status = 'missing'
         if path.is_file():
             status = 'unreadable'
@@ -195,7 +232,7 @@ def main():
             b = dict(image_id=i, box_id=f'{i}_{len(image_boxes)+1:03}', source_row=line,
                      class_label='Lung Opacity', source_x=r['x'], source_y=r['y'], source_width=r['width'], source_height=r['height'],
                      x_min=coords[0], y_min=coords[1], x_max=coords[2], y_max=coords[3],
-                     coordinate_status='valid' if valid and measured else 'valid_assumed_dimensions' if valid and w else 'unchecked_dimensions' if valid else 'invalid',
+                     coordinate_status='valid' if valid and measured else 'unchecked_dimensions' if valid else 'invalid',
                      processed_x_min='', processed_y_min='', processed_x_max='', processed_y_max='')
             image_boxes.append(b)
         if target == '0' and len(rows) > 1:
@@ -237,12 +274,13 @@ def main():
                 panel.save(out/vp)
                 visuals.append((i,vp))
                 visual_counts[visual_group] += 1
+                review_previews.setdefault(visual_group, vp)
         boxes.extend(image_boxes)
         labels.append(dict(image_id=i, image_path=Path(os.path.relpath(path, out)).as_posix(),
                            nih_patient_id=meta['nih_patient_id'], split=assignments[i]['split'],
                            target=target, class_label=cls, is_negative=str(target=='0').lower() if target else '',
                            box_count=len(image_boxes), width=w, height=h,
-                           dimensions_source='decoded_image' if measured else 'user_assumption' if w else 'unknown',
+                           dimensions_source='decoded_image' if measured else 'unknown',
                            image_status=status, processed_path=processed_path, processed_width=ow, processed_height=oh,
                            scale_x=sx, scale_y=sy, pad_left=px, pad_top=py,
                            rescale_slope=intensity.get('rescale_slope', ''), rescale_intercept=intensity.get('rescale_intercept', ''),
@@ -250,7 +288,7 @@ def main():
                            check_status=''))
         if index % 1000 == 0:
             print(f'Processed {index} images', flush=True)
-    image_root = args.images_dir or src/'images'
+    image_root = src/'images'
     if image_root.exists():
         for path in image_root.rglob('*'):
             if path.suffix.lower() in {'.dcm','.png','.jpg','.jpeg','.tif','.tiff'} and path.resolve() not in matched_paths:
@@ -280,7 +318,7 @@ def main():
               f'Decoded images: {summary["decoded_images"]}. Previews: {len(visuals)}. Visual alignment: {summary["visual_alignment"]}.', '',
               'Coordinates are floating-point pixel edges, origin top-left, exclusive maxima. Original and processed coordinates are separate. Missing images never become negatives.', '',
               'Issue counts:', *[f'- {k}: {v}' for k,v in counts.items()], '',
-              f'Source: {args.labels_file}, {args.classes_file}, {args.manifest_file}, and {args.splits_file}. Dimensions for missing images, if supplied, are assumptions, not measurements.', '',
+              f'Source: labels.csv, detailed_class_info.csv, {args.manifest_file}, and {args.splits_file}.', '',
               f'Fixed image splits: {summary["split_counts"]}. Patient splits: {summary["patient_split_counts"]}.', '',
               'DICOM preprocessing uses rescale slope/intercept, MONOCHROME1 inversion, and per-image 0.5/99.5 percentile clipping. Images are normalized to [0, 1], resized with bilinear interpolation, padded, and saved as rounded 8-bit RGB PNGs with identical channels. Box coordinates use the same spatial transform. No crop, rotation, or random augmentation is applied.', '',
               'Image paths in labels.csv are relative to this output directory. Review the previews before using the outputs for training.']
@@ -292,9 +330,61 @@ def main():
     for i,vp in visuals:
         gallery += f'<figure><figcaption>{html.escape(i)}</figcaption><img loading="lazy" src="{vp}"></figure>'
     (out/'visual_checks.html').write_text(gallery)
+    save_review_examples(out, list(review_previews.values()))
     print(json.dumps(summary,indent=2))
     if any(r['severity'] == 'error' for r in issues):
         raise SystemExit('Preparation found errors; inspect issue_summary.csv before using these outputs.')
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--input', required=True, type=Path, help='Metadata directory')
+    p.add_argument('--output', type=Path, help='New or empty directory for prepared data')
+    p.add_argument('--manifest-file', default='image_manifest.csv',
+                   help='Manifest filename; use sample_ids.csv for the development sample')
+    p.add_argument('--splits-file', default='splits.csv')
+    p.add_argument('--target-size', type=int, default=512)
+    p.add_argument('--visual-limit', type=int, default=100,
+                   help='Previews per class/box-count group; -1 for all, 0 for none')
+    p.add_argument('--check-splits', action='store_true',
+                   help='Check saved splits against seed 42 without writing any files')
+    source = p.add_argument_group('Optional official JSON conversion into a new metadata directory')
+    source.add_argument('--annotations', type=Path)
+    source.add_argument('--mappings', type=Path)
+    source.add_argument('--images-dir', type=Path, help='Extracted DICOM root for JSON conversion')
+    source.add_argument('--ids-csv', type=Path, help='Optional image ID selection for JSON conversion')
+    args = p.parse_args()
+
+    conversion = [args.annotations, args.mappings, args.images_dir]
+    if any(conversion) and not all(conversion):
+        p.error('JSON conversion requires --annotations, --mappings, and --images-dir together')
+    if args.ids_csv and not all(conversion):
+        p.error('--ids-csv requires JSON conversion')
+    if args.check_splits:
+        if any(conversion):
+            p.error('--check-splits only reads existing metadata')
+        manifest = read_csv(args.input / args.manifest_file, ['image_id', 'nih_patient_id', 'Target'])
+        if not manifest:
+            p.error('The manifest is missing or empty')
+        prepare_splits(args.input / args.splits_file, manifest, check_only=True)
+        return
+    if args.output is None:
+        p.error('--output is required for preparation')
+    if args.target_size <= 0:
+        p.error('--target-size must be positive')
+    src, out = args.input.resolve(), args.output.resolve()
+    if src == out or src in out.parents:
+        p.error('Use an output directory outside the input folder')
+    if out.exists() and any(out.iterdir()):
+        p.error('Output must be empty or new; choose a fresh output folder')
+    if all(conversion):
+        if args.manifest_file != 'image_manifest.csv':
+            p.error('JSON conversion writes image_manifest.csv; omit --manifest-file')
+        convert_annotations(args.annotations, args.mappings, args.images_dir, src, args.ids_csv)
+    for filename in ('labels.csv', 'detailed_class_info.csv', args.manifest_file):
+        if not (src / filename).is_file():
+            p.error(f'Input file is missing: {filename}')
+    prepare_images(args)
 
 
 if __name__ == '__main__':
