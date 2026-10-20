@@ -118,7 +118,12 @@ def create_classification_loaders(
     num_workers=2,
     seed=42,
 ):
-    """Create reproducible training and validation loaders."""
+    """
+    Create reproducible training and validation loaders.
+
+    The training shuffle generator is available through
+    train_loader.generator for checkpoint saving and restoration.
+    """
     labels = load_prepared_labels(prepared_dir)
     transform = create_classification_transform()
 
@@ -136,8 +141,8 @@ def create_classification_loaders(
         transform=transform,
     )
 
-    generator = torch.Generator()
-    generator.manual_seed(seed)
+    train_generator = torch.Generator()
+    train_generator.manual_seed(seed)
 
     pin_memory = torch.cuda.is_available()
 
@@ -147,7 +152,7 @@ def create_classification_loaders(
         shuffle=True,
         num_workers=num_workers,
         pin_memory=pin_memory,
-        generator=generator,
+        generator=train_generator,
     )
 
     validation_loader = DataLoader(
@@ -159,5 +164,4 @@ def create_classification_loaders(
     )
 
     return train_loader, validation_loader
-
-
+    
