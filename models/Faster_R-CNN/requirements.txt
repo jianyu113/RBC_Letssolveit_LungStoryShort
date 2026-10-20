@@ -1,0 +1,7 @@
+# Run scripts/setup.sh to install the CUDA-enabled Torch wheels and dependencies.
+torch==2.11.0
+torchvision==0.26.0
+numpy==2.5.3
+Pillow==12.3.0
+tqdm==4.70.1
+pycocotools==2.0.11
