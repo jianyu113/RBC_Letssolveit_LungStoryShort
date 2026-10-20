@@ -6,8 +6,8 @@ MODEL_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 PROJECT_DIR="$(cd -- "$MODEL_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 
-if [[ "${CONDA_DEFAULT_ENV:-}" != "lungstoryshort-detection" ]]; then
-    printf '%s\n' "Activate lungstoryshort-detection before running setup.sh." >&2
+if [[ "${CONDA_DEFAULT_ENV:-}" != "lungstoryshort" ]]; then
+    printf '%s\n' "Activate lungstoryshort before running setup.sh." >&2
     exit 1
 fi
 
