@@ -4,7 +4,12 @@ __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
 .DS_Store
-/dataset/rsna_dev_100_prepared/
 
 /models/Faster_R-CNN/runs/
 /models/Faster_R-CNN/weights/
+
+# Local inputs and generated outputs for the final model workflow.
+/artifacts/
+/dataset/rsna_full/
+/models/ResNet-18/runs/
+/models/Fusion/runs/

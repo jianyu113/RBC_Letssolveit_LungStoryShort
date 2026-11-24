@@ -8,11 +8,13 @@ torchvision==0.26.0
 
 # DICOM and data processing
 pydicom==3.0.2
+Pillow==12.3.0
 numpy==2.5.3
 pandas==3.0.6
 
 # Evaluation and visualization
 scikit-learn==1.9.1
+pycocotools==2.0.11
 matplotlib==3.11.2
 
 # Configuration and progress reporting

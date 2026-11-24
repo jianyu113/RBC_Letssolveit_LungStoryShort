@@ -11,6 +11,9 @@ import math
 from pathlib import Path
 import time
 
+import matplotlib
+matplotlib.use("Agg")
+from matplotlib import pyplot as plt
 import torch
 from torch.utils.data import DataLoader, Subset
 from torchvision.models.detection import FasterRCNN, FasterRCNN_ResNet50_FPN_Weights
@@ -38,11 +41,12 @@ def build_model(pretrained=True):
     return model
 
 
-def train_one_epoch(model, loader, optimizer, scaler, device, amp):
+def train_one_epoch(model, loader, optimizer, scaler, device, amp, half_epoch_callback=None):
     model.train()
     totals = {}
     seen = 0
-    for images, targets in tqdm(loader, desc="Train"):
+    halfway = (len(loader) + 1) // 2
+    for step, (images, targets) in enumerate(tqdm(loader, desc="Train"), start=1):
         images = [image.to(device, non_blocking=True) for image in images]
         targets = [
             {key: value.to(device, non_blocking=True) for key, value in target.items()}
@@ -60,7 +64,67 @@ def train_one_epoch(model, loader, optimizer, scaler, device, amp):
         for key, value in {"loss": loss, **losses}.items():
             totals[key] = totals.get(key, 0.0) + value.item() * len(images)
         seen += len(images)
+        if half_epoch_callback is not None and step == halfway and step < len(loader):
+            half_epoch_callback({key: value / seen for key, value in totals.items()})
     return {key: value / seen for key, value in totals.items()}
+
+
+@torch.no_grad()
+def validation_losses(model, loader, device, seed):
+    """Measure detection losses without updating weights, buffers, or training RNG."""
+    modes = [(module, module.training) for module in model.modules()]
+    totals = {}
+    seen = 0
+    try:
+        model.eval()
+        # These flags return losses and use training proposals and ROI sampling.
+        # The backbone and all other children stay in evaluation mode.
+        model.training = True
+        model.rpn.training = True
+        model.roi_heads.training = True
+        with torch.random.fork_rng(devices=list(range(torch.cuda.device_count()))):
+            torch.manual_seed(seed)
+            for images, targets in tqdm(loader, desc="Validation loss"):
+                images = [image.to(device, non_blocking=True) for image in images]
+                targets = [
+                    {key: value.to(device, non_blocking=True) for key, value in target.items()}
+                    for target in targets
+                ]
+                losses = model(images, targets)
+                loss = sum(losses.values())
+                if not math.isfinite(loss.item()):
+                    raise RuntimeError(f"Nonfinite validation loss: {losses}")
+                for key, value in {"loss": loss, **losses}.items():
+                    totals[key] = totals.get(key, 0.0) + value.item() * len(images)
+                seen += len(images)
+    finally:
+        for module, training in modes:
+            module.training = training
+    return {f"val_{key}": value / seen for key, value in totals.items()}
+
+
+def plot_losses(history, output):
+    """Save the completed training and validation loss history after every epoch."""
+    epochs = [row["epoch"] for row in history]
+    figure, axis = plt.subplots(figsize=(8, 5))
+    axis.plot(epochs, [row["loss"] for row in history], marker="o", label="Training")
+    axis.plot(epochs, [row["val_loss"] for row in history], marker="o", label="Validation")
+    axis.set(xlabel="Epoch", ylabel="Total detection loss", title="Faster R-CNN loss")
+    axis.legend()
+    axis.grid(alpha=0.3)
+    figure.tight_layout()
+    figure.savefig(output / "loss_curves.png", dpi=150)
+    plt.close(figure)
+
+
+def write_interval_outputs(history, output):
+    """Save the active half/whole-epoch history and its latest loss curves."""
+    with (output / "interval_metrics.csv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(history[-1]))
+        writer.writeheader()
+        writer.writerows(history)
+    plot_losses(history, output)
+    (output / "interval_loss_curves.png").write_bytes((output / "loss_curves.png").read_bytes())
 
 
 def coco_metrics(images, annotations, detections):
@@ -139,12 +203,16 @@ def parse_args():
     parser.add_argument("--data-dir", type=Path, default=Path("dataset/rsna_full/prepared"))
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--epochs", type=int, default=10, help="Total epochs, including resumed epochs")
-    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--lr", type=float, default=0.005)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
     parser.add_argument("--no-amp", action="store_true")
+    parser.add_argument(
+        "--checkpoint-half-epoch", action="store_true",
+        help="Save model-only half/whole-epoch snapshots and loss curves; resume still uses last.pt",
+    )
     parser.add_argument("--resume", type=Path, help="Resume last.pt in the same output directory")
     parser.add_argument("--evaluate", type=Path, help="Evaluate a saved checkpoint without training")
     parser.add_argument("--eval-split", choices=["val", "test"], default="val")
@@ -181,7 +249,7 @@ def main():
         if fingerprints != checkpoint["data_sha256"]:
             raise ValueError("Prepared metadata differs from the checkpoint's dataset")
         if args.resume:
-            for key in ["batch_size", "lr", "seed", "no_amp", "limit_images", "no_pretrained"]:
+            for key in ["batch_size", "lr", "seed", "no_amp", "limit_images", "no_pretrained", "checkpoint_half_epoch"]:
                 if config[key] != checkpoint["config"][key]:
                     raise ValueError(f"Resume with the original --{key.replace('_', '-')} setting")
             if args.epochs <= checkpoint["epoch"]:
@@ -220,12 +288,14 @@ def main():
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
     scaler = torch.amp.GradScaler("cuda", enabled=amp)
     start_epoch, best_map, history = 1, -1.0, []
+    interval_history = []
     if args.resume:
         optimizer.load_state_dict(checkpoint["optimizer"])
         scheduler.load_state_dict(checkpoint["scheduler"])
         scaler.load_state_dict(checkpoint["scaler"])
         start_epoch = checkpoint["epoch"] + 1
         best_map, history = checkpoint["best_map"], checkpoint["history"]
+        interval_history = checkpoint["interval_history"]
         torch.set_rng_state(checkpoint["torch_rng"])
         generator.set_state(checkpoint["loader_rng"])
         if device.type == "cuda":
@@ -238,31 +308,74 @@ def main():
         "selection_metric": "validation COCO mAP@[0.50:0.95]",
     }
     (args.output / "config.json").write_text(json.dumps(run_info, indent=2) + "\n")
+    if args.resume and args.checkpoint_half_epoch:
+        # Restore the full-epoch checkpoint's history, discarding unfinished-epoch rows.
+        write_interval_outputs(interval_history, args.output)
+
+    def save_interval(progress, row):
+        interval_row = {"epoch": progress, **row}
+        interval_history.append(interval_row)
+        snapshot = args.output / f"epoch_{progress:04.1f}.pt"
+        save_checkpoint(snapshot, {
+            "checkpoint_type": "model_only", "resume_supported": False,
+            "epoch": progress, "model": model.state_dict(), "config": config,
+            "data_sha256": fingerprints, "metrics": interval_row,
+        })
+        write_interval_outputs(interval_history, args.output)
+        (args.output / f"epoch_{progress:04.1f}_loss_curves.png").write_bytes(
+            (args.output / "loss_curves.png").read_bytes()
+        )
+        print(json.dumps({"snapshot": str(snapshot), **interval_row}), flush=True)
+
     for epoch in range(start_epoch, args.epochs + 1):
         started = time.monotonic()
         learning_rate = optimizer.param_groups[0]["lr"]
-        losses = train_one_epoch(model, train_loader, optimizer, scaler, device, amp)
+        def at_half_epoch(train_losses):
+            modes = [(module, module.training) for module in model.modules()]
+            try:
+                # The extra validation iterators also consume CPU RNG; isolate the whole pass.
+                with torch.random.fork_rng(devices=list(range(torch.cuda.device_count()))):
+                    midpoint_losses = validation_losses(model, val_loader, device, args.seed)
+                    midpoint_metrics = evaluate(model, val_loader, device)
+            finally:
+                for module, training in modes:
+                    module.training = training
+            save_interval(epoch - 0.5, {
+                "lr": learning_rate, **train_losses, **midpoint_losses, **midpoint_metrics,
+            })
+
+        losses = train_one_epoch(
+            model, train_loader, optimizer, scaler, device, amp,
+            half_epoch_callback=at_half_epoch if args.checkpoint_half_epoch else None,
+        )
+        val_losses = validation_losses(model, val_loader, device, args.seed)
         metrics = evaluate(model, val_loader, device)
         scheduler.step()
-        row = {"epoch": epoch, "lr": learning_rate, **losses, **metrics, "seconds": time.monotonic() - started}
+        row = {"epoch": epoch, "lr": learning_rate, **losses, **val_losses, **metrics, "seconds": time.monotonic() - started}
         history.append(row)
         improved = metrics["map"] > best_map
         best_map = max(best_map, metrics["map"])
+        if args.checkpoint_half_epoch:
+            save_interval(float(epoch), {
+                "lr": learning_rate, **losses, **val_losses, **metrics,
+            })
         state = {
             "epoch": epoch, "model": model.state_dict(), "optimizer": optimizer.state_dict(),
             "scheduler": scheduler.state_dict(), "scaler": scaler.state_dict(),
-            "best_map": best_map, "history": history, "config": config,
+            "best_map": best_map, "history": history, "interval_history": interval_history, "config": config,
             "data_sha256": fingerprints, "torch_rng": torch.get_rng_state(),
             "loader_rng": generator.get_state(),
             "cuda_rng": torch.cuda.get_rng_state_all() if device.type == "cuda" else [],
         }
-        save_checkpoint(args.output / "last.pt", state)
         if improved:
             save_checkpoint(args.output / "best.pt", state)
+        save_checkpoint(args.output / "last.pt", state)
         with (args.output / "metrics.csv").open("w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(row))
             writer.writeheader()
             writer.writerows(history)
+        if not args.checkpoint_half_epoch:
+            plot_losses(history, args.output)
         print(json.dumps(row), flush=True)
     print(f"Finished. Best validation mAP: {best_map:.4f}. Checkpoints: {args.output}", flush=True)
 

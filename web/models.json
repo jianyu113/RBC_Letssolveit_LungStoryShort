@@ -1,0 +1,34 @@
+{
+  "detector": {
+    "name": "Faster R-CNN Baseline44 · epoch 6",
+    "architecture": "fasterrcnn_resnet50_fpn",
+    "epoch": 6,
+    "file_name": "baseline44_epoch6.pt",
+    "sha256": "6f002c4685f2ccba831388c3f22432fbf3fc36cec5a40d0b73c0ce5fadd7650d",
+    "kaggle_version": 364103459,
+    "source_path": "faster_rcnn_controlled_v1/baseline_batch44/run/epoch_06.0.pt"
+  },
+  "classifier": {
+    "name": "ResNet-18 baseline · epoch 2",
+    "architecture": "resnet18",
+    "epoch": 2,
+    "file_name": "resnet18_baseline_epoch2.pt",
+    "sha256": "bc1aea04eefd65113e94df0335163593fe81d2989d0695c689895795b423115c",
+    "kaggle_version": 362276331,
+    "source_path": "resnet18_full_training_20261025_221305_402389/best.pt"
+  },
+  "fusion": {
+    "detector_weight": 0.8,
+    "classifier_weight": 0.2,
+    "formula": "0.8 * max detector box score + 0.2 * classifier probability",
+    "changes_boxes": false,
+    "changes_box_scores": false
+  },
+  "input_size": 512,
+  "reference_runtime": {"torch": "2.11.0", "torchvision": "0.26.0"},
+  "reference_evaluation_kaggle_version": 368426793,
+  "prepared_dataset_kaggle_version": 358799531,
+  "prepared_labels_sha256": "a632c1e75e3873c898906893de69c5c80164a58e378e2c26868a01517787c915",
+  "prepared_boxes_sha256": "2f493b8204a3260f602725305e29b06fd5f7e291c619590d563bfa7426889a2d",
+  "box_display_threshold": 0.3
+}

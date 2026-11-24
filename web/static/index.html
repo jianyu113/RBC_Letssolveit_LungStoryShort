@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LungStoryShort · Image review</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div class="workspace">
+    <header>
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 6v12M16 12l-5 6M16 12l5 6"/>
+            <path d="M12 8c-4 1-7 6-7 13 0 4 2 5 5 3l3-2V10c0-2-1-3-1-2zM20 8c4 1 7 6 7 13 0 4-2 5-5 3l-3-2V10c0-2 1-3 1-2z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="wordmark">LungStoryShort</div>
+          <div class="brand-sub">Chest X-ray review workspace</div>
+        </div>
+      </div>
+      <div class="header-right"><span class="research">Research demo</span><span class="prototype-pill">PROTOTYPE</span></div>
+    </header>
+
+    <div class="context">
+      <span class="context-title">A clearer view. One image at a time.</span>
+      <span class="demo-label"><span class="amber-dot" id="health-dot"></span><span id="health-label">Checking models…</span></span>
+    </div>
+    <div class="service-message" id="service-message" role="status" hidden></div>
+
+    <main class="grid" id="workspace-grid">
+      <section class="panel upload-panel" aria-labelledby="upload-title">
+        <div class="panel-heading"><h2 id="upload-title">Batch upload</h2></div>
+        <div class="upload-inner">
+          <label class="input-label" for="input-kind">Image format</label>
+          <select id="input-kind">
+            <option value="dicom">Raw DICOM (.dcm)</option>
+            <option value="prepared_png">Prepared PNG (512 × 512)</option>
+          </select>
+          <div class="dropzone" id="dropzone">
+            <div>
+              <svg class="file-icon" viewBox="0 0 48 56" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M11 4h17l10 11v34a3 3 0 0 1-3 3H11a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/>
+                <path d="M28 4v12h10M24 40V25m-6 6 6-6 6 6"/>
+              </svg>
+              <div class="drop-title">Drop X-ray files</div>
+              <div class="drop-hint" id="format-hint">Up to 20 DICOM images</div>
+            </div>
+          </div>
+          <button class="choose" id="choose">Choose files</button>
+          <input type="file" id="files" accept=".dcm,application/dicom" multiple hidden>
+          <div class="ready" id="ready" aria-live="polite">No images selected</div>
+          <button class="primary" id="run" disabled><span id="run-label">Analyze images</span></button>
+          <p class="run-help">80% detector + 20% classifier<br>One fixed ranking score per image</p>
+          <div class="upload-bottom">Images are sent to this inference service.<br>Use de-identified research images.</div>
+        </div>
+      </section>
+
+      <section class="panel rank-panel" aria-labelledby="rank-title">
+        <div class="panel-heading"><h2 id="rank-title">Ranked images</h2><span class="score-heading">Fusion score</span></div>
+        <div class="rank-status"><span id="list-count">0 images</span><span id="sort-state">Waiting for images</span></div>
+        <div class="progressbar" role="progressbar" aria-label="Analysis progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="progress"></i></div>
+        <div class="ranking-list" id="list" aria-label="Ranked X-ray images"><p class="empty-list">Select images to build a review queue.</p></div>
+        <div class="rank-footer"><span id="rank-note">No predictions yet</span><span>80 : 20 FUSION</span></div>
+      </section>
+
+      <section class="panel viewer-panel" aria-labelledby="review-title">
+        <div class="panel-heading view-heading">
+          <h2 id="review-title">Image review</h2>
+          <button class="box-toggle" id="toggle" aria-pressed="true" aria-label="Show detector boxes"><span id="toggle-label">Boxes on</span></button>
+        </div>
+        <div class="viewer-body">
+          <div class="image-stage" id="stage">
+            <div class="image-wrap" id="image-wrap" hidden>
+              <img class="main-image" id="main-image" alt="Selected chest X-ray">
+              <div class="overlay" id="overlay"></div>
+            </div>
+            <p class="empty-stage" id="empty-stage">Select an image to review</p>
+            <div class="stage-badge" id="stage-badge" hidden>MODEL PREDICTIONS</div>
+          </div>
+          <div class="viewer-caption">
+            <div class="viewer-name"><div class="viewer-id" id="viewer-id">No image selected</div><div class="viewer-dim" id="viewer-dim"></div></div>
+            <div class="viewer-score">Fusion score<strong id="viewer-score">—</strong></div>
+          </div>
+          <div class="component-scores"><span>Detector <strong id="detector-score">—</strong></span><span>Classifier <strong id="classifier-score">—</strong></span></div>
+          <div class="legend"><span class="legend-box" id="legend-box"></span><span id="legend-text">Detector boxes · score ≥ 0.30</span></div>
+          <p class="annotation-note" id="annotation-note">Fusion changes the review order. Box locations and scores come directly from the detector.</p>
+        </div>
+      </section>
+    </main>
+    <footer class="page-footer">
+      <span>Research prototype · Not for clinical use</span>
+      <span class="footer-right">Baseline44 epoch 6 · ResNet-18 baseline epoch 2</span>
+    </footer>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+</body>
+</html>

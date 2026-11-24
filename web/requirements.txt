@@ -1,0 +1,9 @@
+torch==2.11.0
+torchvision==0.26.0
+numpy==2.5.3
+Pillow==12.3.0
+pydicom==3.0.2
+fastapi==0.163.1
+uvicorn==0.54.0
+python-multipart==0.0.34
+starlette==1.10.0

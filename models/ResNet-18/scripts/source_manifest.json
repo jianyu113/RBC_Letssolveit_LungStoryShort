@@ -1,0 +1,92 @@
+{
+  "training_source": {
+    "kaggle_version": 362276331,
+    "url": "https://www.kaggle.com/code/crystalchencc/lungstoryshort-resnet-18-full-training-week-3?scriptVersionId=362276331",
+    "input_dataset": "crystalchencc/lungstoryshort-resnet18-scripts",
+    "input_dataset_version_id": 21229717,
+    "supplied_notebook": "lungstoryshort-resnet-18-training-and-resume.ipynb",
+    "supplied_notebook_sha256": "514f551c7e21c858b9093fb42089a048814b1e62f15b7062a62761c502ad041c",
+    "recipe_cells": [
+      29,
+      31
+    ]
+  },
+  "files": {
+    "train_classifier.py": "7cc63bd48c224e766be84e9c881c8b5beb638ad4b3c85a2a15352b5f4ec4868d",
+    "model.py": "5dfa6c871aa8245849bab7b2c9910ed358c7be4fc39c88d53a97524e76565164",
+    "data_loader.py": "42cd08db139a6adcc53dee3b04e2449de83f877bffb749ebb990e7b8547c90a6",
+    "run.sh": "5a209d087434bb455bf955a2843c0ddeef5b70e3b330f7664edcfda72323e5a1"
+  },
+  "source_status": {
+    "train_classifier.py": "Exact preserved original source; SHA256 matches the original notebook environment output.",
+    "model.py": "Exact original source; SHA256 matches the original notebook environment output.",
+    "data_loader.py": "Reconstructed from the user-supplied original code and interface. Original file bytes were not recovered; this is not a byte-identical copy. No augmentation is implemented.",
+    "run.sh": "New entry point with the historical full-training arguments."
+  },
+  "original_loader_sha256_unrecovered": "6afdd56fe8ef3a4ebc6a73c26d701b94c06b3df55606f277ff230c9571c7b4de",
+  "loader_behavior_check": {
+    "status": "PASS",
+    "reference": "Historical R04 loader with horizontal_flip_p=0, identified by reference_sha256; its notebook is archived outside the repository.",
+    "fixture": "Six in-memory 512x512 RGB PNGs and CSV rows; no test files or model training.",
+    "equal": [
+      "dataset row order",
+      "image tensors and labels",
+      "image and patient IDs",
+      "initial shuffle generator state",
+      "two complete shuffle orders and resulting generator states",
+      "validation order"
+    ],
+    "num_workers": 0,
+    "limitation": "This checks the reconstructed behavior, not the unavailable historical file bytes or historical GPU training reproducibility.",
+    "reference_sha256": "4ca165388c86618896f244f984a37913fae82b595663d8fdcd3093cb4beb0878"
+  },
+  "recipe": {
+    "epochs": 10,
+    "batch_size": 16,
+    "workers": 2,
+    "seed": 42,
+    "image_size": 512,
+    "model": "ImageNet-pretrained ResNet-18 with one output logit",
+    "fine_tuning": "all parameters",
+    "normalization": {
+      "mean": [
+        0.485,
+        0.456,
+        0.406
+      ],
+      "std": [
+        0.229,
+        0.224,
+        0.225
+      ]
+    },
+    "optimizer": "Adam",
+    "learning_rate": 0.0001,
+    "weight_decay": 0,
+    "loss": "BCEWithLogitsLoss",
+    "mixed_precision": false,
+    "augmentation": null,
+    "scheduler": null,
+    "early_stopping": false,
+    "selection": "lowest validation BCE",
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true
+  },
+  "historical_runtime": {
+    "python": "3.13.15",
+    "torch": "2.11.0+cu128",
+    "torchvision": "0.26.0+cu128",
+    "gpu": "Tesla T4"
+  },
+  "prepared_data": {
+    "kaggle_version": 358799531,
+    "labels_sha256": "a632c1e75e3873c898906893de69c5c80164a58e378e2c26868a01517787c915"
+  },
+  "adopted_checkpoint": {
+    "epoch": 2,
+    "file": "resnet18_full_training_20261025_221305_402389/best.pt",
+    "sha256": "bc1aea04eefd65113e94df0335163593fe81d2989d0695c689895795b423115c",
+    "validation_bce": 0.35849242885423693
+  },
+  "retraining_note": "These files reproduce the training recipe with an explicitly reconstructed loader. A new run is not guaranteed to recreate the historical checkpoint or metrics. Use the hash-verified adopted checkpoint for exact inference reproduction."
+}

@@ -1,0 +1,52 @@
+{
+  "training_source": {
+    "kaggle_version": 364103459,
+    "url": "https://www.kaggle.com/code/jiayun042/lungstoryshort-faster-r-cnn-controlled-experiments?scriptVersionId=364103459",
+    "cell_index": 4,
+    "extracted_assignments": {
+      "train.py": "TRAINER_SOURCE",
+      "data_loader.py": "BASE_LOADER_SOURCE"
+    },
+    "source_notebook": "kaggle_controlled_experiments.ipynb"
+  },
+  "files": {
+    "train.py": "40124312b4f3215ee9303add8901c8808a0db9bd2d97c0fc1b5933ebd5c3d995",
+    "data_loader.py": "a610c906ba9e83ff29ed34d62269e54ecc79a44f3bcda37ad15e3da0b77a9b15",
+    "run.sh": "f4e612587f7c78ede380f3e1423f1e9e84eecf5ff03b955084626d3ea9f7c2dc"
+  },
+  "verification": "Trainer and loader bytes match the historical source notebook, archived outside the repository; run.sh is the fixed-recipe entry point.",
+  "recipe": {
+    "epochs": 10,
+    "batch_size": 44,
+    "workers": 2,
+    "seed": 42,
+    "image_size": 512,
+    "optimizer": "SGD",
+    "learning_rate": 0.005,
+    "momentum": 0.9,
+    "weight_decay": 0.0005,
+    "scheduler": {
+      "name": "StepLR",
+      "step_size": 5,
+      "gamma": 0.1
+    },
+    "amp": true,
+    "augmentation": null,
+    "trainable_backbone_layers": 3,
+    "checkpoint_interval_epochs": 0.5
+  },
+  "prepared_data": {
+    "kaggle_version": 358799531,
+    "sha256": {
+      "labels.csv": "a632c1e75e3873c898906893de69c5c80164a58e378e2c26868a01517787c915",
+      "boxes.csv": "2f493b8204a3260f602725305e29b06fd5f7e291c619590d563bfa7426889a2d"
+    }
+  },
+  "adopted_checkpoint": {
+    "epoch": 6,
+    "file": "faster_rcnn_controlled_v1/baseline_batch44/run/epoch_06.0.pt",
+    "sha256": "6f002c4685f2ccba831388c3f22432fbf3fc36cec5a40d0b73c0ce5fadd7650d",
+    "selection": "Historical whole-epoch validation Recall@20%, then COCO mAP, then earlier epoch. Trainer best.pt uses COCO mAP and is not the adopted snapshot."
+  },
+  "retraining_note": "These sources reproduce the recipe. A new training run is not guaranteed to recreate identical checkpoint bytes or metrics. Use the verified adopted checkpoint for exact inference reproduction."
+}
